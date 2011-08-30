@@ -34,9 +34,25 @@
 #
 # ***** END LICENSE BLOCK *****
 
-from pulsebuildmonitor import PulseBuildMonitor
+from pulsebuildmonitor import start_pulse_monitor
 from profiler import ProfilerRunner
+import sys
 
-class ProfilerBuildMonitor(PulsebuildMonitor):
-    def onBuildComplete(self, builddata):
-        #check the os and such to see if it matches current machine, and run accordingly
+def main():
+    if len(sys.argv) != 2:
+        sys.exit("Please pass in the platform of the current system (ex: linux, win32, ...)")
+    platform = sys.argv[1]
+    pr = ProfilerRunner(platform)
+    monitor = start_pulse_monitor(buildCallback=pr.start,
+                                  testCallback=None,
+                                  pulseCallback=None,
+                                  label="Profiler",
+                                  tree=['mozilla-central'],
+                                  platform=platform,
+                                  mobile=False,
+                                  buildtype=None,
+                                  logger="Profiler")
+    monitor.join()
+
+if __name__ == "__main__":
+    main()
