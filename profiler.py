@@ -44,20 +44,11 @@ import subprocess
 import shutil
 import zipfile
 
-PLAIN_TESTS = { 'Harness_sanity/test_sanityEventUtils.html': 2, #50,
-                'Harness_sanity/test_sanitySimpletest.html': 2, #60,
-                'Harness_sanity/test_sanityPluginUtils.html': 2,# 10,
-                #'Harness_sanity/test_sanity.html': 1 #TODO: REMOVE
-              }
-# SpecialPowers can't be tested using window.open() so we can't loop them using mochitest.
-# We can move these up to the PLAIN_TESTS once Bug 681392 is resolved
-SPECIAL_TESTS = { #'test_SpecialPowersExtension.html': 1 #20,
-                  'test_sanityWindowSnapshot.html': 1 #5
-                }
-CHROME_TESTS = { 'test_sanityChromeUtils.xul': 2, #200,
-                 'test_sanityEventUtilsChrome.xul': 2 # 50
-                 #'test_synthesizeDrop.xul': 1 #TODO: REMOVE
-               }
+PLAIN_REPEATS = 50
+
+CHROME_REPEATS = 100
+CHROME_TESTS = [ 'test_sanityChromeUtils.xul'
+               ]
 
 #submit separated opt/debug metrics
 
@@ -73,6 +64,8 @@ class ProfilerRunner(object):
         self.cert_path = None
         self.util_path = None
         self.app_name = None
+        self.plain_log_file = 'plainlog'
+        self.chrome_log_file = 'chromelog'
 
     def start(self, builddata):
         assert(builddata['buildurl'])
@@ -92,7 +85,6 @@ class ProfilerRunner(object):
 
         self.test_url = self.builddata['testsurl']
         self.test_path = os.path.join(self.temp_build_dir, 'tests')
-#python runtests.py --certificate-path=/Users/mdas/Downloads/temp/certs --utility-path=/Users/mdas/Downloads/temp/bin --appname=/Users/mdas/Code/mozilla-central/obj-dbg-mac/dist/Nightly.app/Contents/MacOS/firefox-bin
         self.cert_path = os.path.join(self.test_path, 'certs')
         self.util_path = os.path.join(self.test_path, 'bin')
         if 'osx' in self.platform:
@@ -106,13 +98,13 @@ class ProfilerRunner(object):
         print "test_path: %s" % self.test_path
 
         # make a temp directory for the build/tests to extract to and run in
-#        os.mkdir(self.temp_build_dir)
+        os.mkdir(self.temp_build_dir)
         try:
-        #    self.getFiles()
-            self.runTests()
+            self.get_files()
+            self.run_tests()
+            self.parse_and_submit()
         finally:
-          #  self.cleanup()
-          pass
+            self.cleanup()
 
     def make_exec(self, path):
         def mod(arg, dir, names):
@@ -121,7 +113,7 @@ class ProfilerRunner(object):
                 os.chmod(os.path.join(dir, name), 0777)
         os.path.walk(path, mod, None)
 
-    def getFiles(self):
+    def get_files(self):
         # get the build
         print "getting build_url"
         urllib.urlretrieve(self.build_url, self.build_file)
@@ -144,89 +136,91 @@ class ProfilerRunner(object):
 
     def cleanup(self):
         print "cleaning"
-        #shutil.rmtree(self.temp_build_dir)
+        shutil.rmtree(self.temp_build_dir)
 
-    def runTests(self):
-        # Unfortunate hack: we can't use --close-when-done on single tests, shove the file in a temp dir and run it there.
-        # I could have read the input and killed the make process instead, but that was getting tricky, hacky and I'm not sure how it would 
-        # function in Windows.
-        # Can clear this when Bug 508664 is resolved, as it will allow us to close single tests.
+    def run_tests(self):
+        # Unfortunate hack: we can't use --close-when-done on single tests, so just run all of Harness_sanity and pull out the relevant data
+        # Can change this when Bug 508664 is resolved, as it will allow us to close single tests.
         runtests_location = os.path.join(self.test_path, 'mochitest', 'runtests.py')
         profile_location = os.path.join(self.test_path, 'mochitest', 'profile_path')
         print "runtests_location: %s" % runtests_location
-        temp_dir_name = 'temp_profiler_folder'
-        harness_sanity_dir = os.path.join(self.test_path, 'mochitest', 'tests', 'Harness_sanity')
-        temp_dir = os.path.join(harness_sanity_dir, temp_dir_name)
         try:
-            shutil.rmtree(temp_dir)
+            shutil.rmtree(temp_dir_path)
         except:
             pass
+        extra_args = '--repeat=%s'
+
+        harness = 'Harness_sanity'
+        extra_profile_file = os.path.join(self.util_path, 'plugins')
+        ret = subprocess.call(['python',
+                                runtests_location,
+                                '--profile-path=%s' % profile_location, 
+                                '--test-path=%s' % harness,
+                                extra_args % PLAIN_REPEATS,
+                                '--certificate-path=%s' % self.cert_path,
+                                '--utility-path=%s' % self.util_path,
+                                '--appname=%s' % self.app_name,
+                                '--log-file=%s' % self.plain_log_file,
+                                '--extra-profile-file=%s' % extra_profile_file,
+                                '--close-when-done',
+                                '--autorun'
+                                ])
+
+        for test_path in CHROME_TESTS:
+            print test_path
+            ret = subprocess.call(['python',
+                                    runtests_location,
+                                    '--profile-path=%s' % profile_location,
+                                    '--chrome',
+                                    '--test-path=%s' % test_path,
+                                    extra_args % CHROME_REPEATS,
+                                    '--certificate-path=%s' % self.cert_path,
+                                    '--utility-path=%s' % self.util_path,
+                                    '--appname=%s' % self.app_name,
+                                    '--log-file=%s' % self.chrome_log_file,
+                                    '--close-when-done',
+                                    '--autorun'
+                                    ])
+        print 'Done running tests'
+
+    def parse_and_submit(self):
+        plain_results = {}
+        chrome_results = {}
         prof = re.compile("Profile::((\w+):\s*(\d+))")
-        #extra_args = '--repeat=%s'
-        extra_args = '--loops=%s'
-        print "creating: %s" % temp_dir
-        os.mkdir(temp_dir)
-        #os.mkdir(os.path.join(temp_dir, 'tests'))
-        #shutil.copytree(os.path.join(self.test_path, 'mochitest', 'tests', 'SimpleTest'), os.path.join(temp_dir, 'tests', 'SimpleTest'))
-
-        for test, loops in SPECIAL_TESTS.iteritems():
-            print 'running: %s' % test
-            shutil.copy(os.path.join(harness_sanity_dir, test), temp_dir)
-            test_path = os.path.join('Harness_sanity', temp_dir_name)
-            loadTime = 0
-            runTime = 0
-            times = loops
-            while (times >= 0):
-                print "calling runtests"
-#python runtests.py --certificate-path=/Users/mdas/Downloads/temp/certs --utility-path=/Users/mdas/Downloads/temp/bin --appname=/Users/mdas/Code/mozilla-central/obj-dbg-mac/dist/Nightly.app/Contents/MacOS/firefox-bin
-                output = subprocess.Popen(['python', runtests_location, '--profile-path=%s' % profile_location, '--test-path=%s' % test_path, '--certificate-path=%s' % self.cert_path, '--utility-path=%s' % self.util_path, '--appname=%s' % self.app_name,  '--close-when-done', '--autorun'], stdout=subprocess.PIPE)
-                out = output.communicate()[0]
-                print out
-                matches = prof.findall(out)
-                for match in matches:
-                    print match
-                    if 'Run' in match[1]:
-                        print runTime
-                        runTime += int(match[2])
-                    else:
-                        print loadTime
-                        loadTime += int(match[2])
-                times -= 1
-            print "Load: %s, Run: %s" % (loadTime / float(loops), runTime / float(loops))
-
-        for test, loops in PLAIN_TESTS.iteritems():
-            print test
-            output = subprocess.Popen(['python', runtests_location, '--profile-path=%s' % profile_location, '--test-path=%s' % test_path, extra_args % loops,  '--certificate-path=%s' % self.cert_path, '--utility-path=%s' % self.util_path, '--appname=%s' % self.app_name,  '--close-when-done', '--autorun'], stdout=subprocess.PIPE)
-            loadTime = 0
-            runTime = 0
-            matches = prof.findall(output.communicate()[0])
+        logs = open(self.plain_log_file, 'r')
+        #parse out which test is being run.
+        #also, parse out if the test failed
+        for line in logs.readlines():
+            matches = prof.findall(line)
             for match in matches:
-                print match
-                if 'Run' in match[1]:
-                    runTime += int(match[2])
+                if plain_results.has_key(match[1]):
+                    plain_results[match[1]] += int(match[2])
                 else:
-                    loadTime += int(match[2])
-            print "Load: %s, Run: %s" % (loadTime / float(loops), runTime / float(loops))
-
-        for test, loops in CHROME_TESTS.iteritems():
-            output = subprocess.Popen(['python', runtests_location, '--profile-path=%s' % profile_location, '--test-path=%s' % test_path, extra_args % loops,  '--certificate-path=%s' % self.cert_path, '--utility-path=%s' % self.util_path, '--appname=%s' % self.app_name,  '--close-when-done', '--autorun'], stdout=subprocess.PIPE)
-            loadTime = 0
-            runTime = 0
-            matches = prof.findall(output.communicate()[0])
+                    plain_results[match[1]] = int(match[2])
+        logs.close()
+        for k, v in plain_results.iteritems():
+            plain_results[k] = plain_results[k] / PLAIN_REPEATS
+        print plain_results
+        logs = open(self.chrome_log_file, 'r')
+        for line in logs.readlines():
+            matches = prof.findall(line)
             for match in matches:
-                print match
-                if 'Run' in match[1]:
-                    runTime += int(match[2])
+                if chrome_results.has_key(match[1]):
+                    chrome_results[match[1]] += int(match[2])
                 else:
-                    loadTime += int(match[2])
-            print "Load: %s, Run: %s" % (loadTime / float(loops), runTime / float(loops))
-        shutil.rmtree(temp_dir)
-        print 'Done'
-
+                   chrome_results[match[1]] = int(match[2])
+        logs.close()
+        for k, v in chrome_results.iteritems():
+            chrome_results[k] = chrome_results[k] / CHROME_REPEATS
+        print chrome_results
+        
+"""
+#for testing
 if __name__ == "__main__":
     pr = ProfilerRunner('macosx64')
-    pr.start({'buildurl': 'ftp://ftp.mozilla.org/pub/firefox/tinderbox-builds/mozilla-central-macosx64/1314714989/firefox-8.0a1.en-US.mac.dmg',
-              'testsurl': 'ftp://ftp.mozilla.org/pub/firefox/tinderbox-builds/mozilla-central-macosx64/1314714989/firefox-8.0a1.en-US.mac.tests.zip',
+    pr.start({'buildurl': 'ftp://ftp.mozilla.org/pub/firefox/tinderbox-builds/mozilla-central-macosx64/1314714989/firefox-9.0a1.en-US.mac.dmg',
+              'testsurl': 'ftp://ftp.mozilla.org/pub/firefox/tinderbox-builds/mozilla-central-macosx64/1314714989/firefox-9.0a1.en-US.mac.tests.zip',
               'platform': 'macosx64',
               'timestamp': 100
               })
+"""
