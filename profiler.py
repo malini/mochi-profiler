@@ -37,7 +37,6 @@
 from mozInstall import MozInstaller
 import urllib
 import os
-from pulsebuildmonitor import PulseBuildMonitor
 import re
 import stat
 import subprocess
@@ -87,10 +86,10 @@ class ProfilerRunner(object):
         self.test_path = os.path.join(self.temp_build_dir, 'tests')
         self.cert_path = os.path.join(self.test_path, 'certs')
         self.util_path = os.path.join(self.test_path, 'bin')
-        if 'osx' in self.platform:
+        if 'mac' in self.platform:
             self.app_name = os.path.join(self.temp_build_dir, 'Minefield.app', 'Contents/MacOS/firefox-bin')
         if 'linux' in self.platform:
-            #TODO: FIGURE THIS OUT
+            self.app_name = os.path.join(self.temp_build_dir, 'firefox', 'firefox-bin')
             pass
         if 'win' in self.platform:
             #TODO: FIGURE THIS OUT
@@ -118,7 +117,10 @@ class ProfilerRunner(object):
         print "getting build_url"
         urllib.urlretrieve(self.build_url, self.build_file)
         print "installing build"
-        MozInstaller(src=self.build_file, dest=self.temp_build_dir, dest_app='Minefield.app') # dest_app is only used for dmgs
+        if 'mac' in self.platform:
+            MozInstaller(src=self.build_file, dest=self.temp_build_dir, dest_app='Minefield.app') # dest_app is only used for dmgs
+        else:
+            MozInstaller(src=self.build_file, dest=self.temp_build_dir, dest_app='firefox')
 
         # get the tests.zip
         print "getting tests.zip"
