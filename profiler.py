@@ -63,8 +63,6 @@ class ProfilerRunner(object):
         self.cert_path = None
         self.util_path = None
         self.app_name = None
-        self.plain_log_file = 'plainlog'
-        self.chrome_log_file = 'chromelog'
 
     def start(self, builddata):
         assert(builddata['buildurl'])
@@ -75,6 +73,8 @@ class ProfilerRunner(object):
         # extract useful data from builddata
         self.builddata = builddata
         self.temp_build_dir = 'profiler-%s' % builddata['timestamp']
+        self.plain_log_file = os.path.join(self.temp_build_dir, 'plainlog')
+        self.chrome_log_file = os.path.join(self.temp_build_dir, 'chromelog')
         print "temp_build_dir: %s" % self.temp_build_dir
 
         self.build_url = self.builddata['buildurl']
