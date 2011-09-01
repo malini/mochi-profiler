@@ -90,10 +90,8 @@ class ProfilerRunner(object):
             self.app_name = os.path.join(self.temp_build_dir, 'Minefield.app', 'Contents/MacOS/firefox-bin')
         if 'linux' in self.platform:
             self.app_name = os.path.join(self.temp_build_dir, 'firefox', 'firefox-bin')
-            pass
         if 'win' in self.platform:
-            #TODO: FIGURE THIS OUT
-            pass
+            self.app_name = os.path.join(self.temp_build_dir, 'firefox', 'firefox.exe')
         print "test_path: %s" % self.test_path
 
         # make a temp directory for the build/tests to extract to and run in
