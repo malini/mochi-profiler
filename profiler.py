@@ -68,6 +68,7 @@ class ProfilerRunner(object):
         self.app_name = None
         self.log = None
         self.hdlr = None
+        self.ini = None
         self.revision = None
 
     def start(self, builddata):
@@ -96,18 +97,17 @@ class ProfilerRunner(object):
 
         if 'mac' in self.platform:
             self.app_name = os.path.join(self.temp_build_dir, 'Minefield.app', 'Contents', 'MacOS', 'firefox-bin')
-            self.set_revision_from_ini(os.path.join(self.temp_build_dir, 'Minefield.app', 'Contents', 'MacOS', 'application.ini'))
+            self.ini = os.path.join(self.temp_build_dir, 'Minefield.app', 'Contents', 'MacOS', 'application.ini')
         if 'linux' in self.platform:
             self.app_name = os.path.join(self.temp_build_dir, 'firefox', 'firefox-bin')
-            self.set_revision_from_ini(os.path.join(self.temp_build_dir, 'firefox', 'application.ini'))
+            self.ini = os.path.join(self.temp_build_dir, 'firefox', 'application.ini')
         if 'win' in self.platform:
             self.app_name = os.path.join(self.temp_build_dir, 'firefox', 'firefox.exe')
-            self.set_revision_from_ini(os.path.join(self.temp_build_dir, 'firefox', 'application.ini'))
+            self.ini = os.path.join(self.temp_build_dir, 'firefox', 'application.ini')
 
         self.log.info("temp_build_dir: %s" % self.temp_build_dir)
         self.log.info("buildurl: %s" % self.build_url)
         self.log.info("testsurl: %s" % self.test_url)
-        self.log.info("revision id: %s" % self.revision)
 
         # make a temp directory for the build/tests to extract to and run in
         os.mkdir(self.temp_build_dir)
@@ -116,7 +116,7 @@ class ProfilerRunner(object):
             self.run_tests()
             self.parse_and_submit()
             #delete logs only if we successfully finish everything
-            self.delete_log()
+            #self.delete_log()
         except Exception, e:
             self.log.error(e)
         finally:
@@ -147,6 +147,11 @@ class ProfilerRunner(object):
         file = zipfile.ZipFile(test_zip, 'r')
         #file.external_attr = 0777 << 16L #TODO: doesn't work, but a solution like this is better than make_exec
         file.extractall(path=self.test_path)
+
+        #get the revision number:
+        self.set_revision_from_ini(self.ini)
+        self.log.info("revision id: %s" % self.revision)
+
         if not 'win' in self.platform:
             # make the certs and bin files executable
             self.make_exec(os.path.join(self.test_path, 'certs'))
@@ -253,7 +258,7 @@ class ProfilerRunner(object):
               time = value
             )
         self.log.info("Submitting to autolog")
-        #testgroup.submit()
+        testgroup.submit()
             
 
     def delete_log(self):
@@ -265,6 +270,7 @@ class ProfilerRunner(object):
         self.log.info("cleaning temp files")
         shutil.rmtree(self.temp_build_dir)
 
+"""
 #for testing
 if __name__ == "__main__":
     pr = ProfilerRunner('macosx64')
@@ -276,3 +282,4 @@ if __name__ == "__main__":
               'tree': 'mozilla-central',
               'timestamp': 100
               })
+"""
