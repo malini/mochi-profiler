@@ -127,7 +127,6 @@ class ProfilerRunner(object):
             # move log to err_log directory
             self.err_log()
         finally:
-            pass
             self.cleanup()
 
     def make_exec(self, path):
@@ -217,6 +216,7 @@ class ProfilerRunner(object):
         plain_results = {}
         chrome_results = {}
         prof = re.compile("Profile::((\w+):\s*(\d+))")
+        failure = re.compile("Failed:\s+([0-9]*)")
         logs = open(self.plain_log_file, 'r')
         #parse out which test is being run.
         #also, parse out if the test failed
@@ -227,6 +227,11 @@ class ProfilerRunner(object):
                     plain_results[match[1]] += int(match[2])
                 else:
                     plain_results[match[1]] = int(match[2])
+            fail = failure.search(line)
+            if fail:
+                if fail.group(1) is not "0":
+                    self.log.info("Plain tests failed, not submitting data to autolog")
+                    return
         logs.close()
         for k, v in plain_results.iteritems():
             plain_results[k] = plain_results[k] / PLAIN_REPEATS
@@ -238,6 +243,11 @@ class ProfilerRunner(object):
                     chrome_results[match[1]] += int(match[2])
                 else:
                    chrome_results[match[1]] = int(match[2])
+            fail = failure.search(line)
+            if fail:
+                if fail.group(1) is not "0":
+                    self.log.info("Chrome tests failed, not submitting data to autolog")
+                    return
         logs.close()
         for k, v in chrome_results.iteritems():
             chrome_results[k] = chrome_results[k] / CHROME_REPEATS
