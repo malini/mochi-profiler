@@ -260,8 +260,7 @@ class ProfilerRunner(object):
               testgroup = 'mochitest-perf',
               os = self.platform,
               platform = self.platform,
-              builder = self.builddata['buildid'],
-              server = '10.2.76.100:9200',
+              builder = self.builddata['buildid']
             )
             testgroup.set_primary_product(
               tree = self.builddata['tree'],
@@ -291,7 +290,6 @@ class ProfilerRunner(object):
         self.log.info("cleaning temp files")
         shutil.rmtree(self.temp_build_dir)
 
-"""
 #for testing
 if __name__ == "__main__":
     pr = ProfilerRunner('macosx64')
@@ -301,6 +299,6 @@ if __name__ == "__main__":
               'buildid': '12345',
               'buildtype': 'opt',
               'tree': 'mozilla-central',
-              'timestamp': 100
+              'timestamp': 100,
+              'revision': 'asdf3r3f3'
               })
-"""
