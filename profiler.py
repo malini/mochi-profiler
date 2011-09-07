@@ -70,14 +70,21 @@ class ProfilerRunner(object):
         self.hdlr = None
         self.ini = None
         self.revision = None
+        self.log_dir = 'logs'
+        self.err_log_dir = 'err_logs'
 
     def start(self, builddata):
         assert(builddata['buildurl'])
         assert(builddata['testsurl'])
         assert(builddata['timestamp'])
         assert(builddata['platform'] == self.platform)
+        # try to make the log directories
+        try:
+            os.mkdir(self.log_dir)
+        except OSError:
+            pass
         self.log = logging.getLogger("profiler_log_%s" % builddata['timestamp'])
-        self.hdlr = logging.FileHandler("profiler_log_%s" % builddata['timestamp'])
+        self.hdlr = logging.FileHandler(os.path.join(self.log_dir, "profiler_log_%s" % builddata['timestamp']))
         formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
         self.hdlr.setFormatter(formatter)
         self.log.addHandler(self.hdlr) 
@@ -86,8 +93,8 @@ class ProfilerRunner(object):
         # extract useful data from builddata
         self.builddata = builddata
         self.temp_build_dir = 'profiler_%s' % builddata['timestamp']
-        self.plain_log_file = os.path.join(self.temp_build_dir, 'plainlog_%s' % builddata['timestamp'])
-        self.chrome_log_file = os.path.join(self.temp_build_dir, 'chromelog_%s' % builddata['timestamp'])
+        self.plain_log_file = os.path.join(self.log_dir, 'plainlog_%s' % builddata['timestamp'])
+        self.chrome_log_file = os.path.join(self.log_dir, 'chromelog_%s' % builddata['timestamp'])
         self.build_url = self.builddata['buildurl']
         self.build_file = os.path.join(self.temp_build_dir, self.build_url.rpartition("/")[2])
         self.test_path = os.path.join(self.temp_build_dir, 'tests')
@@ -115,10 +122,10 @@ class ProfilerRunner(object):
             self.get_files()
             self.run_tests()
             self.parse_and_submit()
-            #delete logs only if we successfully finish everything
-            #self.delete_log()
         except Exception, e:
             self.log.error(e)
+            # move log to err_log directory
+            self.err_log()
         finally:
             pass
             self.cleanup()
@@ -261,10 +268,14 @@ class ProfilerRunner(object):
         testgroup.submit()
             
 
-    def delete_log(self):
+    def err_log(self):
         self.log.removeHandler(self.hdlr)
         self.hdlr.close()
-        os.remove("profiler_log_%s" % self.builddata['timestamp'])
+        try:
+            os.mkdir(self.err_log_dir)
+        except OSError:
+            pass
+        shutil.move(os.path.join(self.log_dir, "profiler_log_%s" % self.builddata['timestamp']), self.err_log_dir)
         
     def cleanup(self):
         self.log.info("cleaning temp files")
