@@ -290,6 +290,7 @@ class ProfilerRunner(object):
         self.log.info("cleaning temp files")
         shutil.rmtree(self.temp_build_dir)
 
+"""
 #for testing
 if __name__ == "__main__":
     pr = ProfilerRunner('macosx64')
@@ -302,3 +303,4 @@ if __name__ == "__main__":
               'timestamp': 100,
               'revision': 'asdf3r3f3'
               })
+"""
