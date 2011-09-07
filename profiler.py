@@ -213,7 +213,7 @@ class ProfilerRunner(object):
         self.log.info("Done running tests")
 
     def parse_and_submit(self):
-        plain_results = {}
+        results = {}
         chrome_results = {}
         prof = re.compile("Profile::((\w+):\s*(\d+))")
         failure = re.compile("Failed:\s+([0-9]*)")
@@ -223,18 +223,18 @@ class ProfilerRunner(object):
         for line in logs.readlines():
             matches = prof.findall(line)
             for match in matches:
-                if plain_results.has_key(match[1]):
-                    plain_results[match[1]] += int(match[2])
+                if results.has_key(match[1]):
+                    results[match[1]] += int(match[2])
                 else:
-                    plain_results[match[1]] = int(match[2])
+                    results[match[1]] = int(match[2])
             fail = failure.search(line)
             if fail:
                 if fail.group(1) is not "0":
                     self.log.info("Plain tests failed, not submitting data to autolog")
                     return
         logs.close()
-        for k, v in plain_results.iteritems():
-            plain_results[k] = plain_results[k] / PLAIN_REPEATS
+        for k, v in results.iteritems():
+            results[k] = results[k] / PLAIN_REPEATS
         logs = open(self.chrome_log_file, 'r')
         for line in logs.readlines():
             matches = prof.findall(line)
@@ -251,32 +251,32 @@ class ProfilerRunner(object):
         logs.close()
         for k, v in chrome_results.iteritems():
             chrome_results[k] = chrome_results[k] / CHROME_REPEATS
-        plain_results.update(chrome_results)
-        self.log.info("results: %s" % plain_results)
+        results.update(chrome_results)
+        self.log.info("results: %s" % results)
 
         #submit
-        testgroup = RESTfulAutologTestGroup(
-          testgroup = 'mochitest-perf',
-          os = self.platform,
-          platform = self.platform,
-          builder = self.builddata['buildid'],
-          server = '10.2.76.100:9200',
-        )
-        testgroup.set_primary_product(
-          tree = self.builddata['tree'],
-          buildtype = self.builddata['buildtype'],
-          buildid = self.builddata['buildid'],
-          revision = self.revision,
-        )
-        for test, value in plain_results.iteritems():
-            testgroup.add_perf_data(
-              test = test,
-              type = 'ms',
-              time = value
+        if len(results) is not 0:
+            testgroup = RESTfulAutologTestGroup(
+              testgroup = 'mochitest-perf',
+              os = self.platform,
+              platform = self.platform,
+              builder = self.builddata['buildid'],
+              server = '10.2.76.100:9200',
             )
-        self.log.info("Submitting to autolog")
-        testgroup.submit()
-            
+            testgroup.set_primary_product(
+              tree = self.builddata['tree'],
+              buildtype = self.builddata['buildtype'],
+              buildid = self.builddata['buildid'],
+              revision = self.revision,
+            )
+            for test, value in results.iteritems():
+                testgroup.add_perf_data(
+                  test = test,
+                  type = 'ms',
+                  time = value
+                )
+            self.log.info("Submitting to autolog")
+            testgroup.submit()
 
     def err_log(self):
         self.log.removeHandler(self.hdlr)
