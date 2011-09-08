@@ -40,7 +40,6 @@ from mozautolog import RESTfulAutologTestGroup
 from mozInstall import MozInstaller
 import os
 import re
-import stat
 import subprocess
 import shutil
 import urllib
