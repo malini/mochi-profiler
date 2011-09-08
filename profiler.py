@@ -49,8 +49,7 @@ import zipfile
 PLAIN_REPEATS = 50
 
 CHROME_REPEATS = 100
-CHROME_TESTS = [ 'test_sanityChromeUtils.xul'
-               ]
+CHROME_TESTS = [ 'test_sanityChromeUtils.xul']
 
 class ProfilerRunner(object):
     """
