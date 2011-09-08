@@ -49,7 +49,7 @@ import zipfile
 PLAIN_REPEATS = 50
 
 CHROME_REPEATS = 100
-CHROME_TESTS = [ 'test_sanityChromeUtils.xul']
+CHROME_TESTS = ['test_sanityChromeUtils.xul']
 
 class ProfilerRunner(object):
     """
@@ -321,4 +321,3 @@ class ProfilerRunner(object):
         """
         self.log.info("cleaning temp files")
         shutil.rmtree(self.temp_build_dir)
-
