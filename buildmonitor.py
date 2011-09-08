@@ -33,6 +33,10 @@
 # the terms of any one of the MPL, the GPL or the LGPL.
 #
 # ***** END LICENSE BLOCK *****
+"""
+Creates a ProfileRunner when a new build is detected from pulse.
+User must pass in which platform this code is running on (linux, win32, macosx64, ...)
+"""
 
 from pulsebuildmonitor import start_pulse_monitor
 from profiler import ProfilerRunner
