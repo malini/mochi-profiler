@@ -52,9 +52,14 @@ CHROME_REPEATS = 100
 CHROME_TESTS = [ 'test_sanityChromeUtils.xul'
                ]
 
-#submit separated opt/debug metrics
-
 class ProfilerRunner(object):
+    """
+    This object gets created by the pulse build monitor (buildmonitor.py).
+
+    Upon receiving a message from pulse, the build monitor will run start() 
+    in a new thread, which  will get the build, run the tests and submit 
+    the results to autolog.
+    """
     def __init__(self, platform):
         self.platform = platform
         self.builddata = {}
