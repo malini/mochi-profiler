@@ -57,6 +57,13 @@ class ProfilerRunner(object):
     Upon receiving a message from pulse, the build monitor will run start() 
     in a new thread, which  will get the build, run the tests and submit 
     the results to autolog.
+
+    Upon completion, the downloaded files will be deleted.
+
+    If there are any errors, its logs will be stored in the /err_logs directory.
+    Otherwise, logs are stored in the /logs directory, and the running machine is
+    expected to clear this directory at its discretion. Our machines currently
+    clear this directory at midnight.
     """
     def __init__(self, platform):
         self.platform = platform
@@ -133,7 +140,7 @@ class ProfilerRunner(object):
         except Exception, e:
             self.log.error(e)
             # move log to err_log directory
-            self.err_log()
+            self.move_err_log()
         finally:
             self.cleanup()
 
@@ -301,7 +308,7 @@ class ProfilerRunner(object):
             self.log.info("Submitting to autolog")
             testgroup.submit()
 
-    def err_log(self):
+    def move_err_log(self):
         """
         Move this process' log to the err_logs folder
         """
