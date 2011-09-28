@@ -38,12 +38,15 @@ import ConfigParser
 import logging
 from mozautolog import RESTfulAutologTestGroup
 from mozInstall import MozInstaller
+from mozprocess import ProcessHandler
 import os
 import re
 import subprocess
 import shutil
+from threading import Lock
 import urllib
 import zipfile
+import time
 
 PLAIN_REPEATS = 50
 
@@ -82,68 +85,77 @@ class ProfilerRunner(object):
         self.revision = None
         self.log_dir = 'logs'
         self.err_log_dir = 'err_logs'
+        self.lock = Lock()
 
     def start(self, builddata):
         """
         Main thread logic
         """
-        assert(builddata['buildurl'])
-        assert(builddata['testsurl'])
-        assert(builddata['timestamp'])
-        assert(builddata['platform'] == self.platform)
-        # try to make the log directories
         try:
-            os.mkdir(self.log_dir)
-        except OSError:
-            pass
-        self.log = logging.getLogger("profiler_log_%s" % builddata['timestamp'])
-        self.hdlr = logging.FileHandler(os.path.join(self.log_dir, "profiler_log_%s" % builddata['timestamp']))
-        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-        self.hdlr.setFormatter(formatter)
-        self.log.addHandler(self.hdlr) 
-        self.log.setLevel(logging.DEBUG)
-        
-        # extract useful data from builddata
-        self.builddata = builddata
-        self.temp_build_dir = 'profiler_%s' % builddata['timestamp']
-        self.plain_log_file = os.path.join(self.log_dir, 'plainlog_%s' % builddata['timestamp'])
-        self.chrome_log_file = os.path.join(self.log_dir, 'chromelog_%s' % builddata['timestamp'])
-        self.build_url = self.builddata['buildurl']
-        self.build_file = os.path.join(self.temp_build_dir, self.build_url.rpartition("/")[2])
-        self.test_path = os.path.join(self.temp_build_dir, 'tests')
-        self.cert_path = os.path.join(self.test_path, 'certs')
-        self.util_path = os.path.join(self.test_path, 'bin')
-        self.test_url = self.builddata['testsurl']
-
-        # set the app_name and get the application.ini file location according to platform
-        if 'mac' in self.platform:
-            self.app_name = os.path.join(self.temp_build_dir, 'Minefield.app', 'Contents', 'MacOS', 'firefox-bin')
-            self.ini = os.path.join(self.temp_build_dir, 'Minefield.app', 'Contents', 'MacOS', 'application.ini')
-        if 'linux' in self.platform:
-            self.app_name = os.path.join(self.temp_build_dir, 'firefox', 'firefox-bin')
-            self.ini = os.path.join(self.temp_build_dir, 'firefox', 'application.ini')
-        if 'win' in self.platform:
-            self.app_name = os.path.join(self.temp_build_dir, 'firefox', 'firefox.exe')
-            self.ini = os.path.join(self.temp_build_dir, 'firefox', 'application.ini')
-
-        self.log.info("temp_build_dir: %s" % self.temp_build_dir)
-        self.log.info("buildurl: %s" % self.build_url)
-        self.log.info("testsurl: %s" % self.test_url)
-
-        # make a temp directory for the build/tests to extract to and run in
-        os.mkdir(self.temp_build_dir)
-        # try the new build, if anything fails, log and cleanup
-        try:
-            self.get_files()
-            self.run_tests()
-            self.parse_and_submit()
+            self.lock.acquire()
+            assert(builddata['buildurl'])
+            assert(builddata['testsurl'])
+            assert(builddata['timestamp'])
+            assert(builddata['platform'] == self.platform)
+            # try to make the log directories
+            try:
+                os.mkdir(self.log_dir)
+            except OSError:
+                pass
+            self.log = logging.getLogger("profiler_log_%s" % builddata['timestamp'])
+            self.hdlr = logging.FileHandler(os.path.join(self.log_dir, "profiler_log_%s" % builddata['timestamp']))
+            formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+            self.hdlr.setFormatter(formatter)
+            self.log.addHandler(self.hdlr) 
+            self.log.setLevel(logging.DEBUG)
+            
+            # extract useful data from builddata
+            self.builddata = builddata
+            self.temp_build_dir = 'profiler_%s' % builddata['timestamp']
+            self.plain_log_file = os.path.join(self.log_dir, 'plainlog_%s' % builddata['timestamp'])
+            self.chrome_log_file = os.path.join(self.log_dir, 'chromelog_%s' % builddata['timestamp'])
+            self.build_url = self.builddata['buildurl']
+            self.build_file = os.path.join(self.temp_build_dir, self.build_url.rpartition("/")[2])
+            self.test_path = os.path.join(self.temp_build_dir, 'tests')
+            self.cert_path = os.path.join(self.test_path, 'certs')
+            self.util_path = os.path.join(self.test_path, 'bin')
+            self.test_url = self.builddata['testsurl']
+    
+            # set the app_name and get the application.ini file location according to platform
+            if 'mac' in self.platform:
+                self.app_name = os.path.join(self.temp_build_dir, 'Minefield.app', 'Contents', 'MacOS', 'firefox-bin')
+                self.ini = os.path.join(self.temp_build_dir, 'Minefield.app', 'Contents', 'MacOS', 'application.ini')
+            if 'linux' in self.platform:
+                self.app_name = os.path.join(self.temp_build_dir, 'firefox', 'firefox-bin')
+                self.ini = os.path.join(self.temp_build_dir, 'firefox', 'application.ini')
+            if 'win' in self.platform:
+                self.app_name = os.path.join(self.temp_build_dir, 'firefox', 'firefox.exe')
+                self.ini = os.path.join(self.temp_build_dir, 'firefox', 'application.ini')
+    
+            self.log.info("temp_build_dir: %s" % self.temp_build_dir)
+            self.log.info("buildurl: %s" % self.build_url)
+            self.log.info("testsurl: %s" % self.test_url)
+    
+            # make a temp directory for the build/tests to extract to and run in
+            os.mkdir(self.temp_build_dir)
+            # try the new build, if anything fails, log and cleanup
+            try:
+                self.get_files()
+                self.run_tests()
+                self.parse_and_submit()
+            except Exception, e:
+                self.log.error(e)
+                # move log to err_log directory
+                self.move_err_log()
+            finally:
+                self.cleanup()
         except Exception, e:
-            self.log.error(e)
-            # move log to err_log directory
-            self.move_err_log()
+            if self.log:
+                self.log.error(e)
         finally:
-            self.cleanup()
-
+            self.lock.release()
+            
+    
     def make_exec(self, path):
         """
         Make the extracted files runnable/accessible
@@ -172,7 +184,6 @@ class ProfilerRunner(object):
         urllib.urlretrieve(self.test_url, test_zip)
         self.log.info("unzipping: %s" % test_zip)
         file = zipfile.ZipFile(test_zip, 'r')
-        #file.external_attr = 0777 << 16L #TODO: doesn't work, but a solution like this is better than make_exec
         file.extractall(path=self.test_path)
 
         #get the revision number:
@@ -210,7 +221,9 @@ class ProfilerRunner(object):
 
         harness = 'Harness_sanity'
         extra_profile_file = os.path.join(self.util_path, 'plugins')
-        ret = subprocess.call(['python',
+        def timeout_log():
+            print "Timed out"
+        proc = ProcessHandler(['python',
                                 runtests_location,
                                 '--profile-path=%s' % profile_location, 
                                 '--test-path=%s' % harness,
@@ -223,9 +236,10 @@ class ProfilerRunner(object):
                                 '--close-when-done',
                                 '--autorun'
                                 ])
-
+        proc.onTimeout = timeout_log
+        proc.waitForFinish(timeout=3600, logfile=os.path.join(self.log_dir, "profiler_log_%s" % self.builddata['timestamp']))
         for test_path in CHROME_TESTS:
-            ret = subprocess.call(['python',
+            proc = ProcessHandler(['python',
                                     runtests_location,
                                     '--profile-path=%s' % profile_location,
                                     '--chrome',
@@ -238,6 +252,8 @@ class ProfilerRunner(object):
                                     '--close-when-done',
                                     '--autorun'
                                     ])
+        proc.onTimeout = timeout_log
+        proc.waitForFinish(timeout=3600, logfile=os.path.join(self.log_dir, "profiler_log_%s" % self.builddata['timestamp']))
         self.log.info("Done running tests")
 
     def parse_and_submit(self):
@@ -291,7 +307,8 @@ class ProfilerRunner(object):
               testgroup = 'mochitest-perf',
               os = self.platform,
               platform = self.platform,
-              builder = self.builddata['buildid']
+              builder = self.builddata['buildid'],
+              starttime = int(time.time())
             )
             testgroup.set_primary_product(
               tree = self.builddata['tree'],
@@ -300,9 +317,13 @@ class ProfilerRunner(object):
               revision = self.revision,
             )
             for test, value in results.iteritems():
+                test_type = 'LoadTime'
+                if 'RunTime' in test:
+                    test_type = 'RunTime'
                 testgroup.add_perf_data(
-                  test = test,
-                  type = 'ms',
+                  test = 'mochitest-perf',
+                  name = test,
+                  type = test_type,
                   time = value
                 )
             self.log.info("Submitting to autolog")

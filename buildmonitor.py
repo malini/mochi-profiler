@@ -41,6 +41,7 @@ User must pass in which platform this code is running on (linux, win32, macosx64
 from pulsebuildmonitor import start_pulse_monitor
 from profiler import ProfilerRunner
 import sys
+import socket
 
 def main():
     if len(sys.argv) != 2:
@@ -50,7 +51,7 @@ def main():
     monitor = start_pulse_monitor(buildCallback=pr.start,
                                   testCallback=None,
                                   pulseCallback=None,
-                                  label="Profiler",
+                                  label="Profiler-" + socket.gethostname(),
                                   tree=['mozilla-central'],
                                   platform=platform,
                                   mobile=False,
