@@ -15,4 +15,5 @@ Mozautolog -> http://hg.mozilla.org/users/jgriffin_mozilla.com/mozautolog/
 mozinfo and mozprocess packages from Mozmill:
 
 Mozinfo -> https://github.com/mozautomation/mozmill/tree/master/mozinfo/
+
 Mozprocess -> https://github.com/mozautomation/mozmill/tree/master/mozprocess/
